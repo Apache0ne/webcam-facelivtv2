@@ -1,0 +1,12 @@
+/build/
+/.venv/
+/generated/
+*.flvt
+*.pt
+# The preconverted runtime weights are the single shared model artifact.
+!/facelivtv2-l.fp16.flvt
+*.npz
+*.f32
+__pycache__/
+/data/
+/models/*.onnx
