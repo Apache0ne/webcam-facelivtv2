@@ -7,6 +7,7 @@ param(
   [string[]]$KernelArch = @(),
   [switch]$SkipKernelBuild,
   [switch]$AllowCpuBuild,
+  [switch]$UseNinja,
   [string]$Model = ""
 )
 
@@ -86,7 +87,7 @@ if ($LASTEXITCODE -ne 0 -or ($nvccVersion -join " ") -notmatch "release\s+$CudaM
   throw "The CUDA compiler under '$CudaRoot' does not match the requested CUDA $CudaMajor release lane."
 }
 $cudaVsIntegration = Join-Path $CudaRoot "extras\visual_studio_integration\MSBuildExtensions"
-if (-not (Test-Path -LiteralPath $cudaVsIntegration -PathType Container)) {
+if (-not $UseNinja -and -not (Test-Path -LiteralPath $cudaVsIntegration -PathType Container)) {
   throw "CUDA Visual Studio build customizations were not found under '$cudaVsIntegration'. Install the Visual Studio integration component for this CUDA Toolkit."
 }
 
@@ -110,10 +111,15 @@ if (-not (Test-Path -LiteralPath $modelOut -PathType Leaf)) {
 $previousTritonCache = $env:TRITON_CACHE_DIR
 $scriptSetTritonCache = $false
 $previousCudaPath = $env:CUDA_PATH
+$previousPath = $env:PATH
 Push-Location $projectRoot
 try {
   $env:CUDA_PATH = $CudaRoot
-  Write-Host "Using CUDA toolkit path for Visual Studio builds: $env:CUDA_PATH"
+  if ($UseNinja) {
+    $pythonScripts = Split-Path -Parent $pythonExe
+    $env:PATH = "$pythonScripts;$env:PATH"
+  }
+  Write-Host "Using CUDA toolkit path for the native build: $env:CUDA_PATH"
   if ([string]::IsNullOrWhiteSpace($env:TRITON_CACHE_DIR)) {
     $env:TRITON_CACHE_DIR = Join-Path $buildDir "triton_cache"
     New-Item -ItemType Directory -Path $env:TRITON_CACHE_DIR -Force | Out-Null
@@ -144,9 +150,17 @@ try {
   }
 
   $architectureList = $KernelArch -join ";"
-  # CMake must be told which CUDA toolset directory MSBuild should import.
-  # CUDA_PATH alone is not enough for compiler-identification try_compile projects.
-  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir, "-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$CudaRoot", "-DCMAKE_BUILD_TYPE=Release",
+  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir)
+  if ($UseNinja) {
+    $ninjaExe = Resolve-Executable "ninja.exe"
+    $hostCompiler = Resolve-Executable "cl.exe"
+    $cmakeArgs += @("-G", "Ninja Multi-Config", "-DCMAKE_MAKE_PROGRAM=$ninjaExe",
+      "-DCMAKE_CXX_COMPILER=$hostCompiler", "-DCMAKE_CUDA_HOST_COMPILER=$hostCompiler")
+  } else {
+    # CMake's Visual Studio generator imports CUDA's MSBuild customizations.
+    $cmakeArgs += @("-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$CudaRoot")
+  }
+  $cmakeArgs += @("-DCMAKE_BUILD_TYPE=Release",
     "-DCUDAToolkit_ROOT=$CudaRoot", "-DCMAKE_CUDA_COMPILER=$nvcc",
     "-DCMAKE_CUDA_ARCHITECTURES=$architectureList",
     "-DFACELIVT_ONNXRUNTIME_VERSION=$ortVersion")
@@ -166,6 +180,7 @@ try {
 } finally {
   if ($null -eq $previousCudaPath) { Remove-Item Env:CUDA_PATH -ErrorAction SilentlyContinue }
   else { $env:CUDA_PATH = $previousCudaPath }
+  $env:PATH = $previousPath
   if ($scriptSetTritonCache) {
     if ($null -eq $previousTritonCache) { Remove-Item Env:TRITON_CACHE_DIR -ErrorAction SilentlyContinue }
     else { $env:TRITON_CACHE_DIR = $previousTritonCache }

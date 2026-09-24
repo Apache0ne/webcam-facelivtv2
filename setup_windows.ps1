@@ -41,10 +41,10 @@ try {
   Invoke-Python @("-m", "pip", "install", "--upgrade", "pip")
   if (-not $SkipTorchInstall -and -not $AllowCpuBuild) { Invoke-Python @("-m", "pip", "install", "torch==2.11.0", "--index-url", $TorchIndexUrl) }
   if ($AllowCpuBuild) {
-    Invoke-Python @("-m", "pip", "install", "triton-windows==3.6.0.post26")
+    Invoke-Python @("-m", "pip", "install", "triton-windows==3.6.0.post26", "ninja")
     $probe = "import sys, triton; assert sys.version_info[:2] == (3,12); print('Python:', sys.version.split()[0]); print('Triton:', triton.__version__); print('GPU: not used for cross-compiling cubins')"
   } else {
-    Invoke-Python @("-m", "pip", "install", "numpy==2.5.3", "triton-windows==3.6.0.post26")
+    Invoke-Python @("-m", "pip", "install", "numpy==2.5.3", "triton-windows==3.6.0.post26", "ninja")
     $probe = "import sys, numpy, torch, triton; assert sys.version_info[:2] == (3,12); assert torch.cuda.is_available(), 'PyTorch cannot see an NVIDIA CUDA GPU'; print('Python:', sys.version.split()[0]); print('GPU:', torch.cuda.get_device_name(0)); print('PyTorch:', torch.__version__, '| CUDA:', torch.version.cuda); print('Triton:', triton.__version__)"
   }
   Invoke-Python @("-c", $probe)

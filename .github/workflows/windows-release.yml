@@ -16,15 +16,23 @@ jobs:
   build:
     name: CUDA ${{ matrix.cuda_major }} packages
     runs-on: windows-2022
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
           - cuda_major: 12
+            cuda_version: "12.8.1"
+            cuda_subpackages: '["nvcc", "cudart", "cublas", "cufft", "curand", "nvrtc", "nvjitlink"]'
           - cuda_major: 13
+            cuda_version: "13.3.0"
+            cuda_subpackages: '["nvcc", "crt", "nvvm", "cudart", "cublas", "cufft", "curand", "nvrtc", "nvjitlink"]'
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Set up MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set up Python 3.12 for build tools
         uses: actions/setup-python@v5
@@ -32,8 +40,30 @@ jobs:
           python-version: "3.12"
 
       - name: Install the matching CUDA build toolkit
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: local
+          sub-packages: ${{ matrix.cuda_subpackages }}
+          use-github-cache: true
+          log-file-suffix: "windows-cuda${{ matrix.cuda_major }}.txt"
+
+      - name: Verify matching CUDA compiler files
         shell: pwsh
-        run: .\tools\install_cuda_toolkit_ci.ps1 -CudaMajor ${{ matrix.cuda_major }}
+        env:
+          CUDA_MAJOR: ${{ matrix.cuda_major }}
+        run: |
+          $cudaRoot = $env:CUDA_PATH
+          foreach ($requiredPath in @("bin\nvcc.exe", "include\crt\host_config.h", "nvvm\bin\cicc.exe", "nvvm\libdevice\libdevice.10.bc")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $cudaRoot $requiredPath) -PathType Leaf)) {
+              throw "CUDA $env:CUDA_MAJOR compiler file is missing: $requiredPath under $cudaRoot"
+            }
+          }
+          $nvccOutput = & (Join-Path $cudaRoot "bin\nvcc.exe") --version
+          if ($LASTEXITCODE -ne 0 -or ($nvccOutput -join " ") -notmatch "release\s+$env:CUDA_MAJOR\.") {
+            throw "Expected CUDA $env:CUDA_MAJOR at $cudaRoot, found: $($nvccOutput -join ' ')"
+          }
+          Write-Host "CUDA $env:CUDA_MAJOR compiler files verified at $cudaRoot"
 
       - name: Prepare build-only Python tools (CPU runner)
         shell: pwsh
@@ -47,13 +77,13 @@ jobs:
         shell: pwsh
         run: |
           $python = (Resolve-Path .\.venv\Scripts\python.exe).Path
-          .\build_windows.ps1 -CudaMajor ${{ matrix.cuda_major }} -Python $python -CudaRoot $env:FACELIVT_CUDA_ROOT -AllowCpuBuild
+          .\build_windows.ps1 -CudaMajor ${{ matrix.cuda_major }} -Python $python -CudaRoot $env:CUDA_PATH -AllowCpuBuild -UseNinja
 
       - name: Create separate app and runtime ZIPs
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          .\package_release.ps1 -CudaMajor ${{ matrix.cuda_major }} -ReleaseVersion $version -RuntimeBundleVersion $env:RUNTIME_BUNDLE_VERSION -CudaRoot $env:FACELIVT_CUDA_ROOT -SkipRuntimeTest
+          .\package_release.ps1 -CudaMajor ${{ matrix.cuda_major }} -ReleaseVersion $version -RuntimeBundleVersion $env:RUNTIME_BUNDLE_VERSION -CudaRoot $env:CUDA_PATH -SkipRuntimeTest
 
       - name: Verify ZIP contents and checksums
         shell: pwsh

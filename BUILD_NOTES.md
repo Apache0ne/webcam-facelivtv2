@@ -21,7 +21,7 @@ Developer builds use Windows, Visual Studio 2022 C++ Build Tools and a Windows S
 .\tests\verify_split_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.2
 ```
 
-`.github/workflows/windows-release.yml` builds both CUDA lanes on GitHub-hosted Windows CPU runners when a `v*` tag is pushed. The workflow installs the matching CUDA compiler libraries, uses `setup_windows.ps1 -AllowCpuBuild` to cross-compile cubins without a GPU, and runs a package layout and SHA-256 check. It skips inference tests because those require an NVIDIA GPU. Webcam and GPU smoke tests still need a physical GPU system.
+`.github/workflows/windows-release.yml` builds both CUDA lanes on GitHub-hosted Windows CPU runners when a `v*` tag is pushed. It uses `Jimver/cuda-toolkit` with the local installer and only required compiler/runtime subpackages, `ilammy/msvc-dev-cmd`, and CMake's Ninja Multi-Config generator. CUDA 13 requires its separate `crt` and `nvvm` compiler components. The job does not install the display driver or CUDA Visual Studio integration, and it has a 60-minute safety limit. `setup_windows.ps1 -AllowCpuBuild` cross-compiles cubins without a GPU; the workflow then checks the package layout and SHA-256 manifests. Inference and webcam smoke tests still need a physical GPU system.
 
 `.github/workflows/linux-build.yml` checks the portable C++ FaceLiVT core on Ubuntu for CUDA 12 and 13 on pushes and pull requests. `build_linux.sh` builds the embedding, matching, and benchmark examples and the architecture cubins. The Linux target does not include the Windows-only webcam attendance window or SCRFD Media Foundation/D3D11 path.
 
