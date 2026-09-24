@@ -23,6 +23,8 @@ Developer builds use Windows, Visual Studio 2022 C++ Build Tools and a Windows S
 
 `.github/workflows/windows-release.yml` builds both CUDA lanes on GitHub-hosted Windows CPU runners when a `v*` tag is pushed. The workflow installs the matching CUDA compiler libraries, uses `setup_windows.ps1 -AllowCpuBuild` to cross-compile cubins without a GPU, and runs a package layout and SHA-256 check. It skips inference tests because those require an NVIDIA GPU. Webcam and GPU smoke tests still need a physical GPU system.
 
+`.github/workflows/linux-build.yml` checks the portable C++ FaceLiVT core on Ubuntu for CUDA 12 and 13 on pushes and pull requests. `build_linux.sh` builds the embedding, matching, and benchmark examples and the architecture cubins. The Linux target does not include the Windows-only webcam attendance window or SCRFD Media Foundation/D3D11 path.
+
 `package_release.ps1` rejects mismatched toolkits, incomplete architecture manifests, unverified cuDNN wheels, and missing dependency DLLs. It stages an explicit allowlist, so `data/`, build logs, Python files, and source checkpoints are not included.
 
 ## Current validation boundary

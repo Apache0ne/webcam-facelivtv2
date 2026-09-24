@@ -1,0 +1,55 @@
+name: Build Linux CUDA core
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux CUDA ${{ matrix.cuda_major }} core
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cuda_major: 12
+            cuda_version: "12.8.1"
+          - cuda_major: 13
+            cuda_version: "13.3.0"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CUDA Toolkit
+        id: cuda-toolkit
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: local
+          linux-local-args: '["--toolkit"]'
+          log-file-suffix: "linux-cuda${{ matrix.cuda_major }}.txt"
+
+      - name: Install build-only Triton
+        run: python -m pip install --disable-pip-version-check "triton==3.6.0"
+
+      - name: Verify CUDA Toolkit
+        run: |
+          echo "Installed CUDA: ${{ steps.cuda-toolkit.outputs.cuda }}"
+          echo "CUDA path: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
+          nvcc --version
+
+      - name: Build native CUDA core and kernel matrix
+        env:
+          CUDA_ROOT: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+        run: ./build_linux.sh "${{ matrix.cuda_major }}"

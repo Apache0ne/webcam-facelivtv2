@@ -40,6 +40,17 @@ Use an existing Python environment with `-Python 'C:\path\to\python.exe'`. To bu
 
 `-KernelArch` can select architectures explicitly, for example `-KernelArch 75,80,86,89,90,100,120`. Package builds validate the kernel manifest and native CUDA architecture list before writing the ZIP. Run the app from the extracted package to test the webcam; its **Benchmark GPU** button measures inference throughput on a replayed frame independently of camera FPS.
 
+### Linux core build (developers)
+
+The native FaceLiVT embedding, matching, and benchmark executables also build on Linux with CUDA 12 or 13. Install a matching CUDA Toolkit, CMake, a C++20 compiler, Python 3.12, and Triton 3.6.0, then run:
+
+```bash
+python3 -m pip install "triton==3.6.0"
+./build_linux.sh 13
+```
+
+Use `./build_linux.sh 12` for CUDA 12. The script compiles the same architecture-specific cubins and native runtime. `CUDA_ROOT` or `CUDA_PATH` may select the toolkit directory. If the converted `.flvt` weights are absent, pass a source checkpoint with `--model /path/to/checkpoint.pt` (checkpoint conversion also needs PyTorch). The webcam attendance window and SCRFD Media Foundation/D3D11 capture remain Windows-only; Linux CI validates the CUDA FaceLiVT core, not that Windows camera application.
+
 ## Project layout
 
 - `runtime/`, `examples/native_attendance.cpp`: native FaceLiVT runtime, CUDA SCRFD and attendance application.
@@ -47,4 +58,5 @@ Use an existing Python environment with `-Python 'C:\path\to\python.exe'`. To bu
 - `converter/`: developer-time source-checkpoint conversion to the `.flvt` runtime format.
 - `package_release.ps1`: creates separate app and large runtime ZIPs for the selected CUDA lane; never copies personal data.
 - `.github/workflows/windows-release.yml`: builds both CUDA lanes on GitHub-hosted Windows CPU runners and publishes four ZIP assets when a version tag is pushed. CI compiles GPU code but cannot run GPU inference or webcam tests.
+- `.github/workflows/linux-build.yml`: builds the Linux FaceLiVT CUDA core and cubin matrix for CUDA 12 and 13 on GitHub-hosted CPU runners for pushes and pull requests.
 - `third_party/`: upstream code-license reference.

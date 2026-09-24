@@ -85,6 +85,10 @@ $nvccVersion = & $nvcc --version
 if ($LASTEXITCODE -ne 0 -or ($nvccVersion -join " ") -notmatch "release\s+$CudaMajor\.") {
   throw "The CUDA compiler under '$CudaRoot' does not match the requested CUDA $CudaMajor release lane."
 }
+$cudaVsIntegration = Join-Path $CudaRoot "extras\visual_studio_integration\MSBuildExtensions"
+if (-not (Test-Path -LiteralPath $cudaVsIntegration -PathType Container)) {
+  throw "CUDA Visual Studio build customizations were not found under '$cudaVsIntegration'. Install the Visual Studio integration component for this CUDA Toolkit."
+}
 
 if ($AllowCpuBuild) {
   $pythonProbe = "import sys, triton; print('Python:', sys.version.split()[0]); assert sys.version_info[:2] == (3,12), 'Use Python 3.12 for the tested Windows Triton build'; print('Triton:', triton.__version__); print('GPU: not used for cross-compiling cubins')"
@@ -140,7 +144,9 @@ try {
   }
 
   $architectureList = $KernelArch -join ";"
-  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir, "-G", "Visual Studio 17 2022", "-A", "x64", "-DCMAKE_BUILD_TYPE=Release",
+  # CMake must be told which CUDA toolset directory MSBuild should import.
+  # CUDA_PATH alone is not enough for compiler-identification try_compile projects.
+  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir, "-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$CudaRoot", "-DCMAKE_BUILD_TYPE=Release",
     "-DCUDAToolkit_ROOT=$CudaRoot", "-DCMAKE_CUDA_COMPILER=$nvcc",
     "-DCMAKE_CUDA_ARCHITECTURES=$architectureList",
     "-DFACELIVT_ONNXRUNTIME_VERSION=$ortVersion")
