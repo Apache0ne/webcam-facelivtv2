@@ -11,9 +11,9 @@ $installerUrl = if ($CudaMajor -eq 12) {
   "https://developer.download.nvidia.com/compute/cuda/13.3.0/network_installers/cuda_13.3.0_windows_network.exe"
 }
 $components = @()
-# CUDA 13 split the compiler headers/runtime support files into a separate
-# installer component; nvcc alone does not provide crt/host_config.h.
-if ($CudaMajor -eq 13) { $components += "crt_$toolkitVersion" }
+# CUDA 13 split both the compiler headers and NVVM compiler into separate
+# installer components; nvcc alone does not provide these build-time files.
+if ($CudaMajor -eq 13) { $components += @("crt_$toolkitVersion", "nvvm_$toolkitVersion") }
 $components += @(
   "nvcc_$toolkitVersion",
   "cudart_$toolkitVersion",
@@ -33,11 +33,11 @@ $signature = Get-AuthenticodeSignature -LiteralPath $installer
 if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notmatch "NVIDIA") {
   throw "The CUDA installer did not have a valid NVIDIA Authenticode signature."
 }
-Write-Host "Installing nvcc, required CUDA libraries, and Visual Studio build customizations; no GPU driver is requested."
+Write-Host "Installing nvcc, CRT/NVVM compiler files, required CUDA libraries, and Visual Studio customizations; no GPU driver is requested."
 $arguments = @("-n", "-s") + $components
 $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru -NoNewWindow
 if ($process.ExitCode -ne 0) { throw "CUDA $version installer failed (exit $($process.ExitCode))." }
-foreach ($requiredPath in @("bin\nvcc.exe", "include\crt\host_config.h")) {
+foreach ($requiredPath in @("bin\nvcc.exe", "include\crt\host_config.h", "nvvm\bin\cicc.exe", "nvvm\libdevice\libdevice.10.bc")) {
   if (-not (Test-Path -LiteralPath (Join-Path $cudaRoot $requiredPath) -PathType Leaf)) {
     throw "CUDA installer completed but required compiler file '$requiredPath' was not found under '$cudaRoot'."
   }
