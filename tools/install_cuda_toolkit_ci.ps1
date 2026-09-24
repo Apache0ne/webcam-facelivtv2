@@ -17,7 +17,8 @@ $components = @(
   "cufft_$toolkitVersion",
   "curand_$toolkitVersion",
   "nvrtc_$toolkitVersion",
-  "nvjitlink_$toolkitVersion"
+  "nvjitlink_$toolkitVersion",
+  "visual_studio_integration_$toolkitVersion"
 )
 $cudaRoot = Join-Path $env:ProgramFiles "NVIDIA GPU Computing Toolkit\CUDA\v$toolkitVersion"
 $installer = Join-Path $env:RUNNER_TEMP "cuda-$version-windows-network.exe"
@@ -28,7 +29,7 @@ $signature = Get-AuthenticodeSignature -LiteralPath $installer
 if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notmatch "NVIDIA") {
   throw "The CUDA installer did not have a valid NVIDIA Authenticode signature."
 }
-Write-Host "Installing only nvcc and the CUDA libraries used by this build/package; no GPU driver is requested."
+Write-Host "Installing nvcc, required CUDA libraries, and Visual Studio build customizations; no GPU driver is requested."
 $arguments = @("-n", "-s") + $components
 $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru -NoNewWindow
 if ($process.ExitCode -ne 0) { throw "CUDA $version installer failed (exit $($process.ExitCode))." }
