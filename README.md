@@ -4,9 +4,13 @@ Windows webcam attendance built around one native C++20/CUDA runtime. SCRFD-10G 
 
 ## Run a release package
 
-Download the currently published CUDA 13 Windows x64 ZIP from the repository's Releases page, extract the complete ZIP, then run `run_webcam.ps1` or double-click `facelivt_attendance.exe`. The app includes both model files, architecture-specific kernels, ONNX Runtime, cuDNN, and the CUDA runtime DLLs. It does not need Python, PyTorch, Triton, a CUDA Toolkit, or WSL at runtime. A CUDA 12 package is prepared by the same build scripts but still needs a matching CUDA 12 native build before it can be released.
+1. Download the CUDA 13 Windows x64 ZIP from the repository's Releases page.
+2. Unzip the complete archive.
+3. Double-click `facelivt_attendance.exe`.
 
-You need a compatible NVIDIA GPU/driver and the Microsoft Visual C++ 2015–2022 x64 Redistributable. The CUDA 13 package targets Turing and newer (SM 7.5+). Camera availability and supported GPU surfaces depend on the Windows driver and camera.
+The ZIP includes the FaceLiVT and SCRFD-10G detector models, architecture-specific kernels, ONNX Runtime, cuDNN, CUDA runtime DLLs, and the x64 Visual C++ runtime DLLs. It does not need a separate model download, Python, PyTorch, Triton, a CUDA Toolkit, WSL, or a Visual C++ Redistributable installation. A compatible NVIDIA display driver and webcam are still required. A CUDA 12 package is prepared by the same build scripts but needs its own matching native build before release.
+
+The CUDA 13 package contains kernels for SM 7.5, 8.0, 8.6, 8.7, 8.9, 9.0, 10.0, and 12.0, covering GeForce RTX 20/30/40/50 series and selected workstation/data-center GPUs. GTX 10-series and older cards are not covered by this CUDA 13 ZIP. The package was validated end-to-end on an RTX 5060 Laptop GPU; other listed architectures are included but have not each been individually tested. Camera availability and supported GPU surfaces depend on the Windows driver and camera.
 
 The webcam image is processed locally. The app creates `data/` for enrollment embeddings and daily attendance records, and `logs/native-attendance.log` for diagnostics. Those files are personal data: keep them private and do not commit or share them.
 
@@ -27,7 +31,7 @@ Ordinary users should use a release ZIP. Developers who need to change native co
 .\build_windows.ps1 -CudaMajor 13
 
 # Assemble a self-contained package.
-.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.0
+.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.1
 ```
 
 Use an existing Python environment with `-Python 'C:\path\to\python.exe'`. To build a CUDA 12 lane, install CUDA Toolkit 12.8 or newer and pass `-CudaMajor 12`; each CUDA lane uses its matching ONNX Runtime and cuDNN. Build scripts never install WSL or copy the project venv into the release.

@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)][ValidateSet(12, 13)][int]$CudaMajor,
-  [string]$ReleaseVersion = "0.1.0",
+  [string]$ReleaseVersion = "0.1.1",
   [string]$BuildDirectory = "",
   [string]$KernelDirectory = "",
   [string]$CudaRoot = "",
@@ -137,6 +137,37 @@ Copy-Item -LiteralPath (Join-Path $projectRoot "facelivtv2-l.fp16.flvt") -Destin
 Copy-Item -LiteralPath (Join-Path $projectRoot "models\scrfd_10g_bnkps.onnx") -Destination (Join-Path $resolvedReleaseRoot "models")
 Copy-Item -LiteralPath (Join-Path $projectRoot "run_webcam.ps1") -Destination $resolvedReleaseRoot
 
+$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+  throw "Visual Studio Installer locator not found; the Windows C++ runtime DLLs must be bundled for one-click deployment."
+}
+$vsInstall = (& $vswhere -latest -products "*" -property installationPath | Select-Object -First 1)
+if (-not $vsInstall) { throw "No Visual Studio installation found to supply the Windows C++ runtime DLLs." }
+$redistRoot = Join-Path $vsInstall "VC\Redist\MSVC"
+$crtSource = $null
+if (Test-Path -LiteralPath $redistRoot -PathType Container) {
+  $redistVersions = Get-ChildItem -LiteralPath $redistRoot -Directory |
+    Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } |
+    Sort-Object { [version]$_.Name } -Descending
+  foreach ($redistVersion in $redistVersions) {
+    $x64Root = Join-Path $redistVersion.FullName "x64"
+    if (-not (Test-Path -LiteralPath $x64Root -PathType Container)) { continue }
+    $candidate = Get-ChildItem -LiteralPath $x64Root -Directory |
+      Where-Object { $_.Name -match '^Microsoft\.VC[^.]+\.CRT$' } |
+      Select-Object -First 1
+    if ($candidate -and
+        (Test-Path -LiteralPath (Join-Path $candidate.FullName "vcruntime140.dll")) -and
+        (Test-Path -LiteralPath (Join-Path $candidate.FullName "msvcp140.dll"))) {
+      $crtSource = $candidate.FullName
+      break
+    }
+  }
+}
+if (-not $crtSource) { throw "Could not find the x64 Visual C++ app-local runtime DLL set under '$redistRoot'." }
+$crtDlls = @(Get-ChildItem -LiteralPath $crtSource -Filter "*.dll" -File)
+if (-not ($crtDlls.Name -contains "vcruntime140_1.dll")) { throw "The x64 Visual C++ runtime set is incomplete: vcruntime140_1.dll is missing." }
+foreach ($crtDll in $crtDlls) { Copy-Item -LiteralPath $crtDll.FullName -Destination $resolvedReleaseRoot }
+
 $manifestOut = Join-Path $resolvedReleaseRoot "generated\kernels\kernel_manifest.tsv"
 $filteredRows = @($manifest[0])
 foreach ($row in ($manifest | Select-Object -Skip 1)) {
@@ -187,11 +218,23 @@ $readme = @"
 FaceLiVTv2 native attendance runtime for Windows x64
 CUDA lane: $CudaMajor.x | ONNX Runtime: $ortVersion | Release: $ReleaseVersion
 
-Run run_webcam.ps1 (PowerShell) or double-click facelivt_attendance.exe.
-Requires a compatible NVIDIA driver and the Microsoft Visual C++ 2015-2022
-x64 Redistributable. The CUDA Toolkit, Python, PyTorch, and Triton are not
-needed to run this package. The program uses the bundled CUDA/cuDNN/ONNX Runtime
-DLLs and bundled model files.
+Quick start:
+1. Download the ZIP from Releases.
+2. Unzip the complete archive.
+3. Double-click facelivt_attendance.exe.
+
+This ZIP bundles both the FaceLiVT and SCRFD-10G detector models, all
+architecture-specific kernels, the CUDA/cuDNN/ONNX Runtime DLLs, and the x64
+Visual C++ runtime DLLs. No separate model download, CUDA Toolkit, Python,
+PyTorch, Triton, or Visual C++ Redistributable installation is needed.
+
+Requires Windows 10/11 x64, a compatible NVIDIA GPU and display driver, and an
+available webcam. The CUDA 13 build includes GPU code for SM 7.5, 8.0, 8.6,
+8.7, 8.9, 9.0, 10.0, and 12.0: GeForce RTX 20/30/40/50 series, plus selected
+workstation and data-center GPUs. SM 8.7 kernels are also present, but this
+Windows x64 package is not a Jetson release. End-to-end webcam validation was
+performed on an RTX 5060 Laptop GPU; other listed architectures are compiled
+into the package but have not each been individually validated.
 
 The camera preview uses the Windows D3D11/CUDA GPU-surface path. In the app,
 use the Benchmark GPU button to measure uncapped inference on a replayed frame.

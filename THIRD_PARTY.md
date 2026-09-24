@@ -17,6 +17,7 @@ The detector ONNX file is downloaded separately as `models/scrfd_10g_bnkps.onnx`
 - NVIDIA CUDA runtime DLLs are redistributed under NVIDIA's [CUDA EULA](https://docs.nvidia.com/cuda/eula/). The package script takes only the CUDA runtime/provider DLLs needed by the application from the selected CUDA Toolkit; it does not bundle the toolkit or compiler.
 - NVIDIA cuDNN 9.16 DLLs and their license are taken from the official NVIDIA `nvidia-cudnn-cu12` or `nvidia-cudnn-cu13` Windows wheel. The release archive includes the wheel's license text.
 - Microsoft ONNX Runtime CUDA provider DLLs are from the official [`Microsoft.ML.OnnxRuntime.Gpu.Windows`](https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.Gpu.Windows) package. The package's MIT license and third-party notices are included when present in the extracted SDK.
+- The package copies the x64 Microsoft Visual C++ runtime DLLs from the installed Visual Studio redistributable folder so end users do not need to install the separate Visual C++ Redistributable. Microsoft redistribution terms are documented in the [Visual Studio license terms](https://visualstudio.microsoft.com/license-terms/).
 - The native project links Windows system libraries (Media Foundation, D3D11, and related APIs). Those remain part of Windows and are not copied into the package.
 
 The release builder pins the cuDNN wheel SHA-256 and verifies the model download. It writes `SHA256SUMS.txt` into every assembled runtime directory.

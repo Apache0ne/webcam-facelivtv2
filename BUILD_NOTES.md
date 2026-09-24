@@ -1,6 +1,6 @@
 # Windows release build
 
-The published runtime is the native `facelivt_attendance.exe`. `run_webcam.ps1` is a thin launcher; it does not start Python. The package includes FaceLiVT `.flvt` weights, SCRFD ONNX weights, architecture-specific Triton cubins, ONNX Runtime, CUDA/cuDNN runtime DLLs, and the Media Foundation/D3D11 video DLL.
+The published runtime is the native `facelivt_attendance.exe`; double-clicking it starts the app directly from its extracted folder. The package includes FaceLiVT `.flvt` weights, SCRFD ONNX weights, architecture-specific Triton cubins, ONNX Runtime, CUDA/cuDNN runtime DLLs, app-local x64 Visual C++ runtime DLLs, and the Media Foundation/D3D11 video DLL.
 
 ## Release lanes
 
@@ -19,7 +19,7 @@ Builds require Windows, MSVC and a Windows SDK, CMake 3.24+, a matching CUDA Too
 .\setup_windows.ps1
 .\download_scrfd.ps1
 .\build_windows.ps1 -CudaMajor 13 -Python 'C:\path\to\python.exe'
-.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.0
+.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.1
 ```
 
 The package script refuses mismatched toolkit builds, missing architecture entries, unverified cuDNN wheels, and missing runtime files. It stages an explicit allowlist, so `data/`, build logs, Python files, and source checkpoints are not included. Inspect every proposed artifact and license notice before a public release.
