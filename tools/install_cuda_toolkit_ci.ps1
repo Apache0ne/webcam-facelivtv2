@@ -10,7 +10,11 @@ $installerUrl = if ($CudaMajor -eq 12) {
 } else {
   "https://developer.download.nvidia.com/compute/cuda/13.3.0/network_installers/cuda_13.3.0_windows_network.exe"
 }
-$components = @(
+$components = @()
+# CUDA 13 split the compiler headers/runtime support files into a separate
+# installer component; nvcc alone does not provide crt/host_config.h.
+if ($CudaMajor -eq 13) { $components += "crt_$toolkitVersion" }
+$components += @(
   "nvcc_$toolkitVersion",
   "cudart_$toolkitVersion",
   "cublas_$toolkitVersion",
@@ -33,8 +37,10 @@ Write-Host "Installing nvcc, required CUDA libraries, and Visual Studio build cu
 $arguments = @("-n", "-s") + $components
 $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru -NoNewWindow
 if ($process.ExitCode -ne 0) { throw "CUDA $version installer failed (exit $($process.ExitCode))." }
-if (-not (Test-Path -LiteralPath (Join-Path $cudaRoot "bin\nvcc.exe") -PathType Leaf)) {
-  throw "CUDA installer completed but nvcc was not found under '$cudaRoot'."
+foreach ($requiredPath in @("bin\nvcc.exe", "include\crt\host_config.h")) {
+  if (-not (Test-Path -LiteralPath (Join-Path $cudaRoot $requiredPath) -PathType Leaf)) {
+    throw "CUDA installer completed but required compiler file '$requiredPath' was not found under '$cudaRoot'."
+  }
 }
 
 $nvccOutput = & (Join-Path $cudaRoot "bin\nvcc.exe") --version
