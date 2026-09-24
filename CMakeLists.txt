@@ -80,7 +80,10 @@ if(WIN32)
 
     add_library(facelivt_scrfd STATIC runtime/src/scrfd.cpp runtime/src/scrfd_cuda.cu)
     target_include_directories(facelivt_scrfd PUBLIC runtime/include PRIVATE ${FACELIVT_ONNXRUNTIME_INCLUDE_DIR})
-    target_compile_definitions(facelivt_scrfd PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    # MSVC's stable_sort scratch buffer uses aligned_storage for 16-byte
+    # aligned SCRFD candidates; opt into its corrected extended alignment.
+    target_compile_definitions(facelivt_scrfd PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN
+      "$<$<COMPILE_LANGUAGE:CXX>:_ENABLE_EXTENDED_ALIGNED_STORAGE>")
     target_link_libraries(facelivt_scrfd PUBLIC CUDA::cudart ${FACELIVT_ONNXRUNTIME_LIBRARY})
     target_compile_options(facelivt_scrfd PRIVATE
       $<$<COMPILE_LANGUAGE:CXX>:/O2> $<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
