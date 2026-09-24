@@ -21,7 +21,7 @@ if ($missing.Count) { throw "The native release package is incomplete: $($missin
 if (-not (Test-Path -LiteralPath $app -PathType Leaf)) { throw "Native application not found: $app" }
 
 $cudaMajor = if (Test-Path -LiteralPath (Join-Path $root "cudart64_13.dll")) { 13 } elseif (Test-Path -LiteralPath (Join-Path $root "cudart64_12.dll")) { 12 } else { 0 }
-if (-not $cudaMajor) { throw "CUDA runtime DLLs are missing from the package. Extract the complete CUDA release zip." }
+if (-not $cudaMajor) { throw "CUDA runtime DLLs are missing. Extract the matching app and runtime ZIPs into this folder." }
 $expected = if ($cudaMajor -eq 13) { "cudart64_13.dll" } else { "cudart64_12.dll" }
 if (-not (Test-Path -LiteralPath (Join-Path $root $expected) -PathType Leaf)) { throw "CUDA $cudaMajor runtime DLL is missing." }
 

@@ -20,4 +20,4 @@ The detector ONNX file is downloaded separately as `models/scrfd_10g_bnkps.onnx`
 - The package copies the x64 Microsoft Visual C++ runtime DLLs from the installed Visual Studio redistributable folder so end users do not need to install the separate Visual C++ Redistributable. Microsoft redistribution terms are documented in the [Visual Studio license terms](https://visualstudio.microsoft.com/license-terms/).
 - The native project links Windows system libraries (Media Foundation, D3D11, and related APIs). Those remain part of Windows and are not copied into the package.
 
-The release builder pins the cuDNN wheel SHA-256 and verifies the model download. It writes `SHA256SUMS.txt` into every assembled runtime directory.
+The release builder pins the cuDNN wheel SHA-256 and verifies the model download. Each app and runtime ZIP contains its own `SHA256SUMS.txt` covering every file in that ZIP.

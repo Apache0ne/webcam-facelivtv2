@@ -1,0 +1,133 @@
+name: Build Windows CUDA release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  # Bump this only when the bundled CUDA/cuDNN/ONNX Runtime DLL sets change.
+  RUNTIME_BUNDLE_VERSION: "1.0.0"
+
+jobs:
+  build:
+    name: CUDA ${{ matrix.cuda_major }} packages
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cuda_major: 12
+          - cuda_major: 13
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 for build tools
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the matching CUDA build toolkit
+        shell: pwsh
+        run: .\tools\install_cuda_toolkit_ci.ps1 -CudaMajor ${{ matrix.cuda_major }}
+
+      - name: Prepare build-only Python tools (CPU runner)
+        shell: pwsh
+        run: .\setup_windows.ps1 -Python (Get-Command python).Source -AllowCpuBuild
+
+      - name: Download the SCRFD detector model
+        shell: pwsh
+        run: .\download_scrfd.ps1
+
+      - name: Compile CUDA C++ app and architecture kernels
+        shell: pwsh
+        run: |
+          $python = (Resolve-Path .\.venv\Scripts\python.exe).Path
+          .\build_windows.ps1 -CudaMajor ${{ matrix.cuda_major }} -Python $python -CudaRoot $env:FACELIVT_CUDA_ROOT -AllowCpuBuild
+
+      - name: Create separate app and runtime ZIPs
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          .\package_release.ps1 -CudaMajor ${{ matrix.cuda_major }} -ReleaseVersion $version -RuntimeBundleVersion $env:RUNTIME_BUNDLE_VERSION -CudaRoot $env:FACELIVT_CUDA_ROOT -SkipRuntimeTest
+
+      - name: Verify ZIP contents and checksums
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          .\tests\verify_split_release.ps1 -CudaMajor ${{ matrix.cuda_major }} -ReleaseVersion $version -RuntimeBundleVersion $env:RUNTIME_BUNDLE_VERSION
+
+      - name: Upload release ZIPs for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: facelivt-cuda${{ matrix.cuda_major }}-${{ github.ref_name }}
+          path: dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish four release ZIPs
+    runs-on: windows-2022
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "Unexpected release tag: $tag" }
+          $version = $tag.Substring(1)
+          $runtimeVersion = $env:RUNTIME_BUNDLE_VERSION
+          $assets = @(Get-ChildItem -LiteralPath release-assets -Filter "*.zip" -File | Sort-Object Name)
+          $expected = @(
+            "facelivt-app-windows-cuda12-x64-v$version.zip",
+            "facelivt-app-windows-cuda13-x64-v$version.zip",
+            "facelivt-runtime-windows-cuda12-x64-r$runtimeVersion.zip",
+            "facelivt-runtime-windows-cuda13-x64-r$runtimeVersion.zip"
+          )
+          $actual = @($assets | ForEach-Object Name | Sort-Object)
+          if (($actual -join "`n") -ne (($expected | Sort-Object) -join "`n")) {
+            throw "Expected exactly four matching CUDA 12/13 app/runtime ZIPs; found: $($actual -join ', ')"
+          }
+
+          $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          $notes = @"
+          FaceLiVT $tag provides split CUDA runtime and app downloads for Windows x64.
+
+          First install: download the matching CUDA 12 or CUDA 13 runtime ZIP and app ZIP, extract both into the same folder, then double-click `facelivt_attendance.exe`. For app updates, download only the app ZIP while the required runtime revision remains r$runtimeVersion; download a new runtime ZIP only when the release names a newer runtime revision.
+
+          The ZIPs include the FaceLiVT and SCRFD models, GPU kernels, app binaries, CUDA/cuDNN/ONNX Runtime DLLs, and app-local Microsoft C++ runtime files. Python, WSL, a CUDA Toolkit, and a separate Visual C++ Redistributable are not required to run the release. A compatible NVIDIA driver and webcam are required.
+
+          Supported GPU examples include GeForce RTX 20, 30, 40, and 50 series models with compute capability 7.5, 8.0, 8.6, 8.7, 8.9, 9.0, 10.0, or 12.0, plus selected workstation and data-center GPUs. The bundled cuDNN 9.16 detector runtime requires compute capability 7.5 or newer; Pascal and Volta GPUs are not supported. Only the CUDA 13 lane has been end-to-end validated on an RTX 5060 Laptop so far.
+
+          Both lanes were compiled on GitHub-hosted Windows CPU runners. Those runners do not have an NVIDIA GPU, so this workflow does not claim a CUDA inference or webcam test for this release.
+          "@
+          [System.IO.File]::WriteAllText($notesPath,$notes,[System.Text.UTF8Encoding]::new($false))
+
+          $exists = $false
+          & gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { $exists = $true }
+          if ($exists) {
+            $uploadArgs = @("release", "upload", $tag, "--repo", $env:GITHUB_REPOSITORY, "--clobber") + @($assets | ForEach-Object FullName)
+            & gh @uploadArgs
+            if ($LASTEXITCODE -ne 0) { throw "Could not upload the release ZIPs." }
+            & gh release edit $tag --repo $env:GITHUB_REPOSITORY --title "FaceLiVT $tag — split CUDA runtime and app packages" --notes-file $notesPath
+          } else {
+            $createArgs = @("release", "create", $tag, "--repo", $env:GITHUB_REPOSITORY, "--title", "FaceLiVT $tag — split CUDA runtime and app packages", "--notes-file", $notesPath, "--verify-tag") + @($assets | ForEach-Object FullName)
+            & gh @createArgs
+          }
+          if ($LASTEXITCODE -ne 0) { throw "GitHub release publish failed (exit $LASTEXITCODE)." }

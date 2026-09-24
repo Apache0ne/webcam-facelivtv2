@@ -2,7 +2,8 @@ param(
   [string]$Python = "py",
   [string]$EnvironmentPath = ".venv",
   [string]$TorchIndexUrl = "https://download.pytorch.org/whl/cu128",
-  [switch]$SkipTorchInstall
+  [switch]$SkipTorchInstall,
+  [switch]$AllowCpuBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,11 +39,17 @@ if ($LASTEXITCODE -ne 0 -or $envVersion.Trim() -ne "3.12") { throw "The develope
 Push-Location $projectRoot
 try {
   Invoke-Python @("-m", "pip", "install", "--upgrade", "pip")
-  if (-not $SkipTorchInstall) { Invoke-Python @("-m", "pip", "install", "torch==2.11.0", "--index-url", $TorchIndexUrl) }
-  Invoke-Python @("-m", "pip", "install", "numpy==2.5.3", "triton-windows==3.6.0.post26")
-  $probe = "import sys, numpy, torch, triton; assert sys.version_info[:2] == (3,12); assert torch.cuda.is_available(), 'PyTorch cannot see an NVIDIA CUDA GPU'; print('Python:', sys.version.split()[0]); print('GPU:', torch.cuda.get_device_name(0)); print('PyTorch:', torch.__version__, '| CUDA:', torch.version.cuda); print('Triton:', triton.__version__)"
+  if (-not $SkipTorchInstall -and -not $AllowCpuBuild) { Invoke-Python @("-m", "pip", "install", "torch==2.11.0", "--index-url", $TorchIndexUrl) }
+  if ($AllowCpuBuild) {
+    Invoke-Python @("-m", "pip", "install", "triton-windows==3.6.0.post26")
+    $probe = "import sys, triton; assert sys.version_info[:2] == (3,12); print('Python:', sys.version.split()[0]); print('Triton:', triton.__version__); print('GPU: not used for cross-compiling cubins')"
+  } else {
+    Invoke-Python @("-m", "pip", "install", "numpy==2.5.3", "triton-windows==3.6.0.post26")
+    $probe = "import sys, numpy, torch, triton; assert sys.version_info[:2] == (3,12); assert torch.cuda.is_available(), 'PyTorch cannot see an NVIDIA CUDA GPU'; print('Python:', sys.version.split()[0]); print('GPU:', torch.cuda.get_device_name(0)); print('PyTorch:', torch.__version__, '| CUDA:', torch.version.cuda); print('Triton:', triton.__version__)"
+  }
   Invoke-Python @("-c", $probe)
   Write-Host "Developer environment ready: $venvPython"
   Write-Host "This environment is used for checkpoint conversion and Triton cubin generation only."
+  if ($AllowCpuBuild) { Write-Host "CPU build mode: Triton alone is used to cross-compile cubins; GPU inference and webcam tests require a GPU machine." }
   Write-Host "Build a native runtime with .\build_windows.ps1 -CudaMajor 13 (or 12 if that toolkit is installed)."
 } finally { Pop-Location }

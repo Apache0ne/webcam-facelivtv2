@@ -45,7 +45,7 @@ if(WIN32)
   if(FACELIVT_BUILD_NATIVE_DETECTOR)
     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
       if(CUDAToolkit_VERSION VERSION_LESS "13.0")
-        set(_default_detector_arches "61;70;75;80;86;87;89;90;100;120")
+        set(_default_detector_arches "75;80;86;87;89;90;100;120")
       else()
         # CUDA 13 targets Turing and newer; older GPUs use the CUDA 12.x lane.
         set(_default_detector_arches "75;80;86;87;89;90;100;120")

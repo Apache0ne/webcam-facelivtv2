@@ -6,6 +6,7 @@ param(
   [string]$KernelDirectory = "",
   [string[]]$KernelArch = @(),
   [switch]$SkipKernelBuild,
+  [switch]$AllowCpuBuild,
   [string]$Model = ""
 )
 
@@ -15,7 +16,7 @@ $ortVersion = if ($CudaMajor -eq 13) { "1.27.0" } else { "1.26.0" }
 $defaultArchitectures = if ($CudaMajor -eq 13) {
   @("75", "80", "86", "87", "89", "90", "100", "120")
 } else {
-  @("61", "70", "75", "80", "86", "87", "89", "90", "100", "120")
+  @("75", "80", "86", "87", "89", "90", "100", "120")
 }
 if ($KernelArch.Count -eq 0) { $KernelArch = $defaultArchitectures }
 if ([string]::IsNullOrWhiteSpace($BuildDirectory)) { $BuildDirectory = "build\cuda$CudaMajor" }
@@ -85,7 +86,11 @@ if ($LASTEXITCODE -ne 0 -or ($nvccVersion -join " ") -notmatch "release\s+$CudaM
   throw "The CUDA compiler under '$CudaRoot' does not match the requested CUDA $CudaMajor release lane."
 }
 
-$pythonProbe = "import sys, numpy, torch, triton; print('Python:', sys.version.split()[0]); assert sys.version_info[:2] == (3,12), 'Use Python 3.12 for the tested Windows Triton build'; print('PyTorch CUDA:', torch.version.cuda); print('Triton:', triton.__version__); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cross-compiling without local GPU')"
+if ($AllowCpuBuild) {
+  $pythonProbe = "import sys, triton; print('Python:', sys.version.split()[0]); assert sys.version_info[:2] == (3,12), 'Use Python 3.12 for the tested Windows Triton build'; print('Triton:', triton.__version__); print('GPU: not used for cross-compiling cubins')"
+} else {
+  $pythonProbe = "import sys, numpy, torch, triton; print('Python:', sys.version.split()[0]); assert sys.version_info[:2] == (3,12), 'Use Python 3.12 for the tested Windows Triton build'; print('PyTorch CUDA:', torch.version.cuda); print('Triton:', triton.__version__); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cross-compiling without local GPU')"
+}
 Invoke-Checked -Executable $pythonExe -Arguments @("-c", $pythonProbe) -Stage "Developer Python/Triton preflight"
 
 $kernelDir = Resolve-ProjectPath $KernelDirectory
@@ -139,6 +144,7 @@ try {
   Write-Host "Native CUDA $CudaMajor build complete: $releaseDir"
   Write-Host "Build output: .\package_release.ps1 -CudaMajor $CudaMajor -BuildDirectory '$BuildDirectory' -KernelDirectory '$KernelDirectory' -CudaRoot '$CudaRoot'"
   Write-Host "The packaged app runs without Python; Python/Triton were used only to compile the architecture cubins."
+  if ($AllowCpuBuild) { Write-Host "No PyTorch or NVIDIA GPU was used by this CPU cross-build." }
 } finally {
   Pop-Location
 }
