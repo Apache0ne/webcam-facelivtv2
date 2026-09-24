@@ -1,95 +1,43 @@
-# FaceLiVTv2-L C++ / Triton CUDA runtime
+# FaceLiVTv2 Native CUDA Attendance
 
-Purpose-built inference runtime for the official `facelivtv2_l` 112x112 FaceLiVTv2 checkpoint.
+Windows webcam attendance built around one native C++20/CUDA runtime. SCRFD-10G face detection and five-point alignment run through ONNX Runtime's CUDA provider; FaceLiVTv2 embeddings and attendance matching use the project's custom CUDA kernels. Webcam capture and preview use Media Foundation, D3D11, and CUDA GPU surfaces.
 
-The native inference runtime builds on Windows and Linux with an NVIDIA CUDA
-GPU. The optional live attendance application currently supports Windows only
-because camera capture and preview use Media Foundation and D3D11. It requires
-locally generated GPU kernels. The repository shares the smaller converted
-`facelivtv2-l.fp16.flvt` weights so users can skip checkpoint conversion. The
-build script can still create that file from a local `facelivtv2-l.pt` if the
-converted file is absent; raw `.pt` files stay ignored to avoid duplicating the
-weights. Confirm the model weights' redistribution rights before publishing.
-The SCRFD detector weights are downloaded separately under their own terms. See
-[WEBCAM.md](WEBCAM.md) for the Windows setup and run steps, and
-[THIRD_PARTY.md](THIRD_PARTY.md) for model licensing notes.
+## Run a release package
 
-## Windows quick start
+Download the currently published CUDA 13 Windows x64 ZIP from the repository's Releases page, extract the complete ZIP, then run `run_webcam.ps1` or double-click `facelivt_attendance.exe`. The app includes both model files, architecture-specific kernels, ONNX Runtime, cuDNN, and the CUDA runtime DLLs. It does not need Python, PyTorch, Triton, a CUDA Toolkit, or WSL at runtime. A CUDA 12 package is prepared by the same build scripts but still needs a matching CUDA 12 native build before it can be released.
 
-On Windows x64 with an NVIDIA GPU, C++ Build Tools, CMake, and CUDA Toolkit, run
-these from PowerShell in the project folder. The detector download is separate
-because its pretrained weights have different licensing terms. Review
-`THIRD_PARTY.md` before running the downloader:
+You need a compatible NVIDIA GPU/driver and the Microsoft Visual C++ 2015–2022 x64 Redistributable. The CUDA 13 package targets Turing and newer (SM 7.5+). Camera availability and supported GPU surfaces depend on the Windows driver and camera.
+
+The webcam image is processed locally. The app creates `data/` for enrollment embeddings and daily attendance records, and `logs/native-attendance.log` for diagnostics. Those files are personal data: keep them private and do not commit or share them.
+
+Read [WEBCAM.md](WEBCAM.md) for use and troubleshooting, and [THIRD_PARTY.md](THIRD_PARTY.md) for model and bundled-library terms. SCRFD pretrained weights are provided under non-commercial research terms.
+
+## Build from source (developers)
+
+Ordinary users should use a release ZIP. Developers who need to change native code or generate a different model can use Windows, Visual Studio C++ Build Tools, CMake 3.24+, the matching CUDA Toolkit, and Python 3.12 with CUDA-enabled PyTorch and Triton. The Python environment is only for converting a supplied checkpoint and compiling the project's architecture-specific Triton cubins; the packaged runtime remains native.
 
 ```powershell
+# Optional: prepare a project-local developer environment.
 .\setup_windows.ps1
+
+# Download the separately licensed SCRFD detector weights.
 .\download_scrfd.ps1
-.\build_windows.ps1
-.\run_webcam.ps1
+
+# Build the CUDA 13 lane (or use -CudaMajor 12 with CUDA Toolkit 12.8+).
+.\build_windows.ps1 -CudaMajor 13
+
+# Assemble a self-contained package.
+.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.0
 ```
 
-The setup script creates `.venv` and installs the tested Python/CUDA packages.
-The build script uses shared converted weights when available, otherwise
-converts the `.pt` checkpoint, then compiles kernels for the GPU in that
-machine. `WEBCAM.md` includes instructions for using an existing Python
-environment and obtaining the detector file.
+Use an existing Python environment with `-Python 'C:\path\to\python.exe'`. To build a CUDA 12 lane, install CUDA Toolkit 12.8 or newer and pass `-CudaMajor 12`; each CUDA lane uses its matching ONNX Runtime and cuDNN. Build scripts never install WSL or copy the project venv into the release.
 
-## Design
+`-KernelArch` can select architectures explicitly, for example `-KernelArch 75,80,86,89,90,100,120`. Package builds validate the kernel manifest and native CUDA architecture list before writing the ZIP. Run the app from the extracted package to test the webcam; its **Benchmark GPU** button measures inference throughput on a replayed frame independently of camera FPS.
 
-- final application is C++20 + CUDA Driver/Runtime only
-- Triton is used at build time to compile custom CUDA kernels into cubins
-- no PyTorch, Python, ONNX Runtime, TensorRT, timm, or LibTorch in deployment
-- NHWC FP16 activations
-- FP32 accumulation in Tensor-Core `tl.dot` pointwise kernels
-- official structural reparameterization is performed by the converter
-- stage RepConv residual identities are folded into depthwise weights
-- BatchNorm is folded into Conv/Linear weights
-- one fused MHLA kernel handles affine + 4 spatial linears + layer-scale + residual
-- fixed-shape CUDA graphs are captured per batch size
-- optional GPU gallery cosine scoring
+## Project layout
 
-## Build order
-
-1. Optionally convert the original checkpoint if you do not already have the
-   converted weight file:
-
-```bash
-python converter/convert_facelivtv2_l.py \
-  --checkpoint facelivtv2-l.pt \
-  --output facelivtv2-l.fp16.flvt
-```
-
-2. Compile Triton kernels for the GPU present on the build machine:
-
-```bash
-python tools/build_kernels.py --out generated/kernels
-```
-
-This writes `generated/kernels/kernel_manifest.tsv` and cubins.
-
-3. Build C++:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release -j
-```
-
-4. Runtime usage is demonstrated in `examples/embed.cpp`.
-
-## Input contract
-
-The C++ API accepts a packed batch of already-aligned 112x112 8-bit 3-channel face crops. The preprocessing kernel converts RGB/BGR bytes to FP16 NHWC and applies the official normalization:
-
-`x = x / 127.5 - 1.0`
-
-The output is 512-dimensional. Optional L2 normalization is performed on GPU.
-
-## Status
-
-Native Windows smoke tests and live webcam attendance have run on an RTX 5060
-Laptop GPU with CUDA Toolkit 13.3, Visual Studio 2026, and triton-windows
-3.6.0.post26. All 31 kernels compiled, and the webcam showed GPU detection,
-recognition, camera capture, and D3D11 preview. This is not yet a clean-machine
-portability guarantee; generated kernels are built for the local GPU, and model
-parity/recognition accuracy still need broader validation. See `TODO.md` and
-`WEBCAM.md` for details.
+- `runtime/`, `examples/native_attendance.cpp`: native FaceLiVT runtime, CUDA SCRFD and attendance application.
+- `kernels/`, `tools/build_kernels.py`: Triton kernel source and developer-time cubin compilation only.
+- `converter/`: developer-time source-checkpoint conversion to the `.flvt` runtime format.
+- `package_release.ps1`: stages only runtime binaries, required DLLs, models, kernels, and notices; never copies personal data.
+- `third_party/`: upstream code-license reference.

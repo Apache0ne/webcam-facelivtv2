@@ -1,34 +1,29 @@
-# Build notes
+# Windows release build
 
-The C++ inference runtime requires C++20, CUDA Toolkit libraries, and an NVIDIA
-driver that supports the generated kernels. CMake 3.24 or newer is required.
-Windows uses MSVC; Linux uses the supplied `build_linux.sh` script. The webcam
-capture and D3D11 preview DLL are Windows-only.
+The published runtime is the native `facelivt_attendance.exe`. `run_webcam.ps1` is a thin launcher; it does not start Python. The package includes FaceLiVT `.flvt` weights, SCRFD ONNX weights, architecture-specific Triton cubins, ONNX Runtime, CUDA/cuDNN runtime DLLs, and the Media Foundation/D3D11 video DLL.
 
-Kernel generation has been smoke-tested on Windows with Python 3.12,
-triton-windows 3.6.0.post26, CUDA Toolkit 13.3, Visual Studio 2026, and an RTX
-5060 Laptop GPU. Triton emits cubins and a manifest under `generated/kernels`;
-these are generated locally and are intentionally excluded from source control.
-Regenerate the cubins and manifest together whenever the builder or Triton
-version changes. Build on the target NVIDIA architecture when possible.
+## Release lanes
 
-The converted `.flvt` file contains FP16 model tensors and is independent of
-the GPU architecture. It can be distributed to avoid repeating checkpoint
-conversion. The generated Triton cubins remain specific to the build target and
-must be compiled locally for each supported GPU architecture.
+- CUDA 13.x pairs with ONNX Runtime 1.27 and cuDNN 9.16; current native kernels target SM 7.5, 8.0, 8.6, 8.7, 8.9, 9.0, 10.0, and 12.0.
+- The planned CUDA 12.x lane (12.8 or newer) pairs with ONNX Runtime 1.26 and cuDNN 9.16; native kernels additionally target SM 6.1 and 7.0. Its package builder is ready, but no CUDA 12 ZIP is published until the lane has been built and tested with CUDA Toolkit 12.8+.
 
-`build_windows.ps1` and `build_linux.sh` both use an existing
-`facelivtv2-l.fp16.flvt` when present, or convert `facelivtv2-l.pt` if the
-converted file is absent. Passing a `.pt` path to either build script forces a
-fresh conversion.
+ONNX Runtime documents CUDA 12.8-built packages as compatible with CUDA 12.x and CUDA 13-built packages with CUDA 13.x; cuDNN major versions must also match. Each archive is assembled from one CUDA lane and must not mix provider DLLs or cuDNN builds.
 
-The webcam frontend also needs a CUDA-enabled PyTorch installation,
-`onnxruntime-gpu`, NumPy, Pillow, and OpenCV in its Python environment. It
-requires CUDA/cuDNN libraries compatible with the ONNX Runtime CUDA provider.
-The app imports PyTorch before initializing ONNX Runtime to expose its CUDA
-libraries on Windows. See `WEBCAM.md` for setup and camera requirements.
+CUDA 13 no longer compiles device code for pre-Turing GPUs, so the CUDA 12 lane is the path for Pascal/Volta. The manifests allow the FaceLiVT runtime to select matching Triton cubins, while SCRFD custom CUDA code is built by CMake for the same architectures. Cross-compilation of cubins is not a substitute for testing on physical GPUs. Only the RTX 5060 Laptop / SM 12.0 live configuration has been exercised end-to-end to date.
 
-Windows targets default to the static MSVC runtime because the CUDA driver
-library links against LIBCMT. Python is not needed at inference time for the
-native C++ runtime; it is used to convert checkpoints, compile Triton kernels,
-and run the optional webcam UI.
+## Developer tools
+
+Builds require Windows, MSVC and a Windows SDK, CMake 3.24+, a matching CUDA Toolkit, Python 3.12, CUDA-enabled PyTorch, and `triton-windows`. Python runs only during checkpoint conversion or cubin generation. The release package contains none of the Python environment.
+
+```powershell
+.\setup_windows.ps1
+.\download_scrfd.ps1
+.\build_windows.ps1 -CudaMajor 13 -Python 'C:\path\to\python.exe'
+.\package_release.ps1 -CudaMajor 13 -ReleaseVersion 0.1.0
+```
+
+The package script refuses mismatched toolkit builds, missing architecture entries, unverified cuDNN wheels, and missing runtime files. It stages an explicit allowlist, so `data/`, build logs, Python files, and source checkpoints are not included. Inspect every proposed artifact and license notice before a public release.
+
+## Current validation boundary
+
+Native SCRFD/CUDA inference, custom FaceLiVT CUDA inference, and webcam capture/display have run on the RTX 5060 Laptop. Repeat clean extraction and camera tests on additional Windows NVIDIA systems before describing other GPU families as verified. Similarity thresholds are trial values; model-output parity and recognition accuracy need separate validation.

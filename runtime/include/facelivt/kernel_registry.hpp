@@ -23,7 +23,7 @@ public:
     KernelRegistry(const KernelRegistry&)=delete;
     KernelRegistry& operator=(const KernelRegistry&)=delete;
 
-    void load(const std::filesystem::path& manifest);
+    void load(const std::filesystem::path& manifest,int device=0);
     const KernelInfo& get(const std::string& alias) const;
     void launch(const std::string& alias,
                 unsigned gx,unsigned gy,unsigned gz,

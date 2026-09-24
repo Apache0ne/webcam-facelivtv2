@@ -75,6 +75,7 @@ struct Video {
     ComPtr<IDWriteTextFormat> font;
     cudaGraphicsResource* resource = nullptr;
     unsigned width = 640, height = 480, view_width = 640, view_height = 480;
+    double requested_frame_rate = 30.0;
     DXGI_FORMAT texture_format = DXGI_FORMAT_UNKNOWN;
     bool have_frame = false;
 
@@ -136,12 +137,18 @@ struct Video {
         check(reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE), "deselect streams");
         check(reader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, TRUE), "select video");
         ComPtr<IMFMediaType> type;
-        check(MFCreateMediaType(&type), "video type");
-        check(type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video), "video major type");
-        check(type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32), "BGRA video subtype");
-        check(MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, width, height), "video dimensions");
-        check(MFSetAttributeRatio(type.Get(), MF_MT_FRAME_RATE, 30, 1), "video rate");
-        check(reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr, type.Get()), "set 640x480 GPU video output");
+        HRESULT last=E_FAIL; bool configured=false;
+        for(unsigned rate:{120u,90u,60u,50u,30u}) {
+            check(MFCreateMediaType(&type), "video type");
+            check(type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video), "video major type");
+            check(type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32), "BGRA video subtype");
+            check(MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, width, height), "video dimensions");
+            check(MFSetAttributeRatio(type.Get(), MF_MT_FRAME_RATE, rate, 1), "video rate");
+            last=reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr, type.Get());
+            if(SUCCEEDED(last)) { requested_frame_rate=static_cast<double>(rate); configured=true; break; }
+            type.Reset();
+        }
+        if(!configured) check(last,"set GPU video output at 120/90/60/50/30 FPS");
     }
 
     void open_display(IDXGIFactory1* factory, HWND window) {
@@ -295,5 +302,8 @@ VIDEO_API int flvt_video_test_frame(void* handle, const void* gpu_input, size_t 
 VIDEO_API int flvt_video_present(void* handle, const Overlay* overlays, int count, char* error, size_t capacity) noexcept {
     try { if(!handle) throw std::runtime_error("Video handle is closed"); static_cast<Video*>(handle)->present(overlays,count); return 0; }
     catch(const std::exception& e) { error_text(error,capacity,e.what()); return 1; }
+}
+VIDEO_API double flvt_video_get_frame_rate(void* handle) noexcept {
+    return handle?static_cast<Video*>(handle)->requested_frame_rate:0.0;
 }
 VIDEO_API void flvt_video_destroy(void* handle) noexcept { delete static_cast<Video*>(handle); }

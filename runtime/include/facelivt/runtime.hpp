@@ -44,7 +44,8 @@ public:
 
     // Device API uses stable internal graph buffers and D2D copies.
     void infer_device(const uint8_t* d_input, int batch, float* d_output,
-                      bool bgr_input, bool normalize);
+                      bool bgr_input, bool normalize,
+                      cudaStream_t input_ready_stream=nullptr);
 
     // Gallery rows are normalized during upload. `infer_and_score_host` returns
     // batch x gallery_count cosine scores; top-k reduction is a later optimization.

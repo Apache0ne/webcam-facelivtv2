@@ -1,10 +1,5 @@
-# Validation phase (not run yet)
+# Native runtime checks
 
-1. Create a real aligned 112x112 BGR crop as raw bytes.
-2. Generate official FP32/reparameterized golden values with `generate_golden.py`.
-3. Convert the checkpoint and compile the custom runtime.
-4. Run `facelivt_embed` to produce `output.f32`.
-5. Run `compare_cpp.py`.
-6. Only after end-to-end parity, start layer-by-layer and performance profiling.
+The built `facelivt_embed.exe` runs one 112x112 BGR image through FaceLiVT and writes a normalized 512-float embedding. `facelivt_scrfd_smoke.exe` runs a packed BGRA frame through SCRFD and five-point GPU alignment. Both are native diagnostics and require a compatible CUDA driver plus the model and kernel files.
 
-This directory is intentionally scaffolding only at this stage.
+The scripts in this folder that use Python are developer-side model conversion/reference comparison helpers. They are not part of the release runtime. A live camera/display check still needs to be done interactively with `run_webcam.ps1`.

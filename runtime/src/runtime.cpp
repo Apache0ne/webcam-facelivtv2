@@ -27,7 +27,7 @@ Runtime::Runtime(const std::filesystem::path& model,
     // Force Runtime API context creation before loading Driver API modules.
     cuda_check(cudaFree(nullptr),"initialize CUDA context");
     model_.load(model);
-    kernels_.load(kernel_manifest);
+    kernels_.load(kernel_manifest,opt_.device);
     cuda_check(cudaStreamCreateWithFlags(&stream_,cudaStreamNonBlocking),"cudaStreamCreate");
     allocate_buffers();
 }
@@ -215,11 +215,21 @@ void Runtime::infer_host(const uint8_t* input,int batch,float* output,bool bgr_i
     std::memcpy(output,h_output_pinned_,out_bytes);
 }
 
-void Runtime::infer_device(const uint8_t* d_input,int batch,float* d_output,bool bgr_input,bool normalize){
+void Runtime::infer_device(const uint8_t* d_input,int batch,float* d_output,bool bgr_input,bool normalize,
+                           cudaStream_t input_ready_stream){
     if(!d_input||!d_output) throw std::runtime_error("null device inference pointer");
     if(batch<1||batch>opt_.max_batch) throw std::runtime_error("invalid batch");
     const size_t in_bytes=static_cast<size_t>(batch)*kInputBytesPerFace;
     const size_t out_bytes=static_cast<size_t>(batch)*kEmbedding*sizeof(float);
+    if(input_ready_stream && input_ready_stream!=stream_){
+        cudaEvent_t ready=nullptr;
+        cuda_check(cudaEventCreateWithFlags(&ready,cudaEventDisableTiming),"create input-ready event");
+        try {
+            cuda_check(cudaEventRecord(ready,input_ready_stream),"record input-ready event");
+            cuda_check(cudaStreamWaitEvent(stream_,ready,0),"wait for device input producer");
+        } catch(...) { cudaEventDestroy(ready); throw; }
+        cuda_check(cudaEventDestroy(ready),"release input-ready event");
+    }
     cuda_check(cudaMemcpyAsync(d_input_u8_,d_input,in_bytes,cudaMemcpyDeviceToDevice,stream_),"D2D input");
     cuda_check(cudaGraphLaunch(graph_for(batch,bgr_input,normalize),stream_),"cudaGraphLaunch");
     cuda_check(cudaMemcpyAsync(d_output,d_output_,out_bytes,cudaMemcpyDeviceToDevice,stream_),"D2D output");

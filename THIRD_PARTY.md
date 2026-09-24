@@ -1,26 +1,22 @@
-# Third-party reference
+# Third-party code, models, and runtime libraries
 
-The runtime architecture and checkpoint converter target the official FaceLiVT / FaceLiVTv2 model definition supplied by the user from the FaceLiVT project. The upstream project license is reproduced in `third_party/FaceLiVT_LICENSE_BSD3.txt`.
+Read these terms before redistributing the release or using it commercially. A code license does not automatically apply to model weights.
 
-The repository's shared model artifact is `facelivtv2-l.fp16.flvt`, converted
-from the `facelivtv2-l.pt` checkpoint supplied by the project owner. The
-BSD-3-Clause license in this folder applies to the upstream code; it does not
-by itself establish redistribution rights for the checkpoint or its converted
-weights. Confirm the model's terms before publishing the `.flvt` artifact.
+## FaceLiVTv2
 
-## Optional webcam detector
+The C++ runtime and converter implement the FaceLiVTv2-L architecture supplied for this project. The upstream BSD-3-Clause code license is reproduced in [`third_party/FaceLiVT_LICENSE_BSD3.txt`](third_party/FaceLiVT_LICENSE_BSD3.txt).
 
-SCRFD architecture, preprocessing, and landmark conventions are described by
-the upstream InsightFace project:
-https://github.com/deepinsight/insightface/tree/master/detection/scrfd
-and https://github.com/deepinsight/insightface/blob/master/python-package/docs/model_zoo.md.
-The downloaded SCRFD-10G weights are separate from the native FaceLiVT model.
-InsightFace's public pretrained weights are provided for non-commercial research;
-commercial use requires separate licensing from their provider. This restriction
-concerns the weights, not merely the code license. See the upstream model zoo for
-the applicable terms. WEBCAM.md records the detector download and checksum.
+`facelivtv2-l.fp16.flvt` is a converted checkpoint artifact supplied for this project. The upstream code license does not by itself establish rights for the checkpoint or converted weights. Confirm the checkpoint's terms before redistribution or commercial use.
 
-OpenCV is used for small CPU-side image-quality and display operations. Video
-capture/display use the Windows Media Foundation and D3D11/CUDA path. The webcam
-frontend does not use SFace/ArcFace recognition weights or the InsightFace
-Python package.
+## SCRFD-10G detector
+
+The detector ONNX file is downloaded separately as `models/scrfd_10g_bnkps.onnx`; the download script verifies its SHA-256. SCRFD source and pretrained-model terms are published by [InsightFace](https://github.com/deepinsight/insightface). InsightFace states that its public pretrained models are available for non-commercial research; commercial use requires separate permission from the provider. The release includes a copy of this notice.
+
+## Bundled GPU/runtime dependencies
+
+- NVIDIA CUDA runtime DLLs are redistributed under NVIDIA's [CUDA EULA](https://docs.nvidia.com/cuda/eula/). The package script takes only the CUDA runtime/provider DLLs needed by the application from the selected CUDA Toolkit; it does not bundle the toolkit or compiler.
+- NVIDIA cuDNN 9.16 DLLs and their license are taken from the official NVIDIA `nvidia-cudnn-cu12` or `nvidia-cudnn-cu13` Windows wheel. The release archive includes the wheel's license text.
+- Microsoft ONNX Runtime CUDA provider DLLs are from the official [`Microsoft.ML.OnnxRuntime.Gpu.Windows`](https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.Gpu.Windows) package. The package's MIT license and third-party notices are included when present in the extracted SDK.
+- The native project links Windows system libraries (Media Foundation, D3D11, and related APIs). Those remain part of Windows and are not copied into the package.
+
+The release builder pins the cuDNN wheel SHA-256 and verifies the model download. It writes `SHA256SUMS.txt` into every assembled runtime directory.
