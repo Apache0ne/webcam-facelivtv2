@@ -25,7 +25,7 @@ if ([string]::IsNullOrWhiteSpace($KernelDirectory)) { $KernelDirectory = "genera
 
 function Resolve-Executable([string]$Name) {
   if (Test-Path -LiteralPath $Name -PathType Leaf) { return (Resolve-Path -LiteralPath $Name).Path }
-  $found = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue
+  $found = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $found) { throw "Could not find '$Name' on PATH." }
   return $found.Source
 }
@@ -43,7 +43,7 @@ if ([string]::IsNullOrWhiteSpace($Python)) {
   $Python = if (Test-Path -LiteralPath $localPython -PathType Leaf) { $localPython } else { "python" }
 }
 $pythonExe = Resolve-Executable $Python
-$cmakeExe = Get-Command -Name "cmake" -CommandType Application -ErrorAction SilentlyContinue
+$cmakeExe = Get-Command -Name "cmake" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($cmakeExe) { $cmakeExe = $cmakeExe.Source }
 else {
   $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
