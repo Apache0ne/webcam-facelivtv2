@@ -42,5 +42,6 @@ if ($LASTEXITCODE -ne 0 -or ($nvccOutput -join " ") -notmatch "release\s+$CudaMa
   throw "Installed toolkit did not report CUDA $CudaMajor as expected."
 }
 "FACELIVT_CUDA_ROOT=$cudaRoot" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+"CUDA_PATH=$cudaRoot" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
 Write-Host "Installed CUDA $version build toolkit at $cudaRoot"
 Remove-Item -LiteralPath $installer -Force

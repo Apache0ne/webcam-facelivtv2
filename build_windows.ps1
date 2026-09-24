@@ -105,8 +105,11 @@ if (-not (Test-Path -LiteralPath $modelOut -PathType Leaf)) {
 
 $previousTritonCache = $env:TRITON_CACHE_DIR
 $scriptSetTritonCache = $false
+$previousCudaPath = $env:CUDA_PATH
 Push-Location $projectRoot
 try {
+  $env:CUDA_PATH = $CudaRoot
+  Write-Host "Using CUDA toolkit path for Visual Studio builds: $env:CUDA_PATH"
   if ([string]::IsNullOrWhiteSpace($env:TRITON_CACHE_DIR)) {
     $env:TRITON_CACHE_DIR = Join-Path $buildDir "triton_cache"
     New-Item -ItemType Directory -Path $env:TRITON_CACHE_DIR -Force | Out-Null
@@ -155,6 +158,8 @@ try {
   Write-Host "The packaged app runs without Python; Python/Triton were used only to compile the architecture cubins."
   if ($AllowCpuBuild) { Write-Host "No PyTorch or NVIDIA GPU was used by this CPU cross-build." }
 } finally {
+  if ($null -eq $previousCudaPath) { Remove-Item Env:CUDA_PATH -ErrorAction SilentlyContinue }
+  else { $env:CUDA_PATH = $previousCudaPath }
   if ($scriptSetTritonCache) {
     if ($null -eq $previousTritonCache) { Remove-Item Env:TRITON_CACHE_DIR -ErrorAction SilentlyContinue }
     else { $env:TRITON_CACHE_DIR = $previousTritonCache }
