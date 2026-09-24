@@ -155,7 +155,7 @@ try {
     $ninjaExe = Resolve-Executable "ninja.exe"
     $hostCompiler = Resolve-Executable "cl.exe"
     $cmakeArgs += @("-G", "Ninja Multi-Config", "-DCMAKE_MAKE_PROGRAM=$ninjaExe",
-      "-DCMAKE_CXX_COMPILER=$hostCompiler", "-DCMAKE_CUDA_HOST_COMPILER=$hostCompiler")
+      "-DCMAKE_CXX_COMPILER=$hostCompiler")
   } else {
     # CMake's Visual Studio generator imports CUDA's MSBuild customizations.
     $cmakeArgs += @("-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$CudaRoot")
