@@ -138,7 +138,12 @@ jobs:
           $notes = @"
           FaceLiVT $tag provides split CUDA runtime and app downloads for Windows x64.
 
-          First install: download the matching CUDA 12 or CUDA 13 runtime ZIP and app ZIP, extract both into the same folder, then double-click `facelivt_attendance.exe`. For app updates, download only the app ZIP while the required runtime revision remains r$runtimeVersion; download a new runtime ZIP only when the release names a newer runtime revision.
+          First install:
+          1. Download the app ZIP and matching CUDA 12 or CUDA 13 runtime ZIP.
+          2. Extract both ZIPs into the same folder.
+          3. Double-click facelivt_attendance.exe.
+
+          For app updates, download only the app ZIP while the required runtime revision remains r$runtimeVersion; download a new runtime ZIP only when the release names a newer runtime revision.
 
           The ZIPs include the FaceLiVT and SCRFD models, GPU kernels, app binaries, CUDA/cuDNN/ONNX Runtime DLLs, and app-local Microsoft C++ runtime files. Python, WSL, a CUDA Toolkit, and a separate Visual C++ Redistributable are not required to run the release. A compatible NVIDIA driver and webcam are required.
 
