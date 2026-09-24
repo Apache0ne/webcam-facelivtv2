@@ -11,7 +11,7 @@ The app and runtime ZIPs must use the same CUDA lane and release version. Do not
 
 ## Developer and CI builds
 
-Developer builds use Windows, MSVC and a Windows SDK, CMake 3.24+, the matching CUDA Toolkit, Python 3.12, CUDA-enabled PyTorch, and `triton-windows`. Python runs only to convert a checkpoint or compile cubins; no Python tools ship in the app/runtime ZIPs.
+Developer builds use Windows, Visual Studio 2022 C++ Build Tools and a Windows SDK, CMake 3.24+, the matching CUDA Toolkit, Python 3.12, CUDA-enabled PyTorch, and `triton-windows`. Python runs only to convert a checkpoint or compile cubins; no Python tools ship in the app/runtime ZIPs.
 
 ```powershell
 .\setup_windows.ps1

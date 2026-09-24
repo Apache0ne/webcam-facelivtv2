@@ -60,10 +60,10 @@ if ($LASTEXITCODE -ne 0 -or -not $cmakeMatch.Success -or [version]$cmakeMatch.Gr
 $vswherePath = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
 $msvcInstall = $null
 if (Test-Path -LiteralPath $vswherePath -PathType Leaf) {
-  $msvcInstall = & $vswherePath -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+  $msvcInstall = & $vswherePath -latest -products '*' -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 }
-if ([string]::IsNullOrWhiteSpace([string]$msvcInstall) -and -not (Get-Command -Name "cl.exe" -CommandType Application -ErrorAction SilentlyContinue)) {
-  throw "MSVC C++ Build Tools and a Windows SDK are required. Install the Desktop development with C++ workload."
+if ([string]::IsNullOrWhiteSpace([string]$msvcInstall)) {
+  throw "Visual Studio 2022 C++ Build Tools and a Windows SDK are required for the supported CUDA toolkits. Install the Desktop development with C++ workload."
 }
 
 if ([string]::IsNullOrWhiteSpace($CudaRoot)) {
@@ -103,8 +103,16 @@ if (-not (Test-Path -LiteralPath $modelOut -PathType Leaf)) {
   Invoke-Checked -Executable $pythonExe -Arguments @("converter\convert_facelivtv2_l.py", "--checkpoint", $sourceModel, "--output", $modelOut) -Stage "Checkpoint conversion"
 }
 
+$previousTritonCache = $env:TRITON_CACHE_DIR
+$scriptSetTritonCache = $false
 Push-Location $projectRoot
 try {
+  if ([string]::IsNullOrWhiteSpace($env:TRITON_CACHE_DIR)) {
+    $env:TRITON_CACHE_DIR = Join-Path $buildDir "triton_cache"
+    New-Item -ItemType Directory -Path $env:TRITON_CACHE_DIR -Force | Out-Null
+    $scriptSetTritonCache = $true
+    Write-Host "Using project-local Triton compile cache: $env:TRITON_CACHE_DIR"
+  }
   & (Join-Path $projectRoot "tools\fetch_onnxruntime.ps1") -Version $ortVersion
   if ($LASTEXITCODE -ne 0) { throw "Could not fetch the CUDA $CudaMajor ONNX Runtime C++ package." }
 
@@ -129,8 +137,9 @@ try {
   }
 
   $architectureList = $KernelArch -join ";"
-  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir, "-DCMAKE_BUILD_TYPE=Release",
-    "-DCUDAToolkit_ROOT=$CudaRoot", "-DCMAKE_CUDA_ARCHITECTURES=$architectureList",
+  $cmakeArgs = @("-S", $projectRoot, "-B", $buildDir, "-G", "Visual Studio 17 2022", "-A", "x64", "-DCMAKE_BUILD_TYPE=Release",
+    "-DCUDAToolkit_ROOT=$CudaRoot", "-DCMAKE_CUDA_COMPILER=$nvcc",
+    "-DCMAKE_CUDA_ARCHITECTURES=$architectureList",
     "-DFACELIVT_ONNXRUNTIME_VERSION=$ortVersion")
   Invoke-Checked -Executable $cmakeExe -Arguments $cmakeArgs -Stage "CMake configuration"
   Invoke-Checked -Executable $cmakeExe -Arguments @("--build", $buildDir, "--config", "Release", "--target", "facelivt_attendance", "facelivt_scrfd_smoke", "facelivt_embed", "--parallel") -Stage "Native C++/CUDA build"
@@ -146,5 +155,9 @@ try {
   Write-Host "The packaged app runs without Python; Python/Triton were used only to compile the architecture cubins."
   if ($AllowCpuBuild) { Write-Host "No PyTorch or NVIDIA GPU was used by this CPU cross-build." }
 } finally {
+  if ($scriptSetTritonCache) {
+    if ($null -eq $previousTritonCache) { Remove-Item Env:TRITON_CACHE_DIR -ErrorAction SilentlyContinue }
+    else { $env:TRITON_CACHE_DIR = $previousTritonCache }
+  }
   Pop-Location
 }

@@ -20,7 +20,7 @@ Read [WEBCAM.md](WEBCAM.md) for use and troubleshooting, and [THIRD_PARTY.md](TH
 
 ## Build from source (developers)
 
-Ordinary users should download the matching app/runtime ZIP pair. Developers who need to change native code or generate a different model can use Windows, Visual Studio C++ Build Tools, CMake 3.24+, the matching CUDA Toolkit, and Python 3.12 with CUDA-enabled PyTorch and Triton. Python is only used to convert a supplied checkpoint and compile architecture-specific cubins; the packaged app remains native.
+Ordinary users should download the matching app/runtime ZIP pair. Developers who need to change native code or generate a different model can use Windows, Visual Studio 2022 C++ Build Tools, CMake 3.24+, the matching CUDA Toolkit, and Python 3.12 with CUDA-enabled PyTorch and Triton. Python is only used to convert a supplied checkpoint and compile architecture-specific cubins; the packaged app remains native.
 
 ```powershell
 # Optional: prepare a project-local developer environment.
